@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a14; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+THREE.VRButton = {
+  createButton: function(renderer) {
+    const button = document.createElement('button');
+    function showEnterVR() {
+      let currentSession = null;
+      async function onSessionStarted(session) {
+        session.addEventListener('end', onSessionEnded);
+        currentSession = session;
+        await renderer.xr.setSession(session);
+        button.textContent = 'EXIT VR';
+      }
+      function onSessionEnded() {
+        if (currentSession) {
+          currentSession.removeEventListener('end', onSessionEnded);
+        }
+        button.textContent = 'ENTER VR';
+        currentSession = null;
+      }
+      button.style.display = '';
+      button.style.cursor = 'pointer';
+      button.style.left = 'calc(50% - 50px)';
+      button.style.width = '100px';
+      button.textContent = 'ENTER VR';
+      button.onmouseenter = () => button.style.opacity = '1.0';
+      button.onmouseleave = () => button.style.opacity = '0.5';
+      button.onclick = function() {
+        if (currentSession === null) {
+          const sessionInit = { optionalFeatures: ['local-floor','bounded-floor','hand-tracking','layers'] };
+          navigator.xr.requestSession('immersive-vr', sessionInit).then(onSessionStarted);
+        } else {
+          currentSession.end();
+        }
+      };
+    }
+    function disableButton() {
+      button.style.display = '';
+      button.style.cursor = 'auto';
+      button.style.left = 'calc(50% - 75px)';
+      button.style.width = '150px';
+      button.onmouseenter = null;
+      button.onmouseleave = null;
+      button.onclick = null;
+    }
+    function showWebXRNotFound() {
+      disableButton();
+      button.textContent = 'VR NOT SUPPORTED';
+    }
+    function stylizeElement(element) {
+      element.style.position = 'absolute';
+      element.style.bottom = '20px';
+      element.style.padding = '12px 6px';
+      element.style.border = '1px solid #fff';
+      element.style.borderRadius = '4px';
+      element.style.background = 'rgba(0,0,0,0.1)';
+      element.style.color = '#fff';
+      element.style.font = 'normal 13px sans-serif';
+      element.style.textAlign = 'center';
+      element.style.opacity = '0.5';
+      element.style.outline = 'none';
+      element.style.zIndex = '999';
+    }
+    if ('xr' in navigator) {
+      button.id = 'VRButton';
+      button.style.display = 'none';
+      stylizeElement(button);
+      navigator.xr.isSessionSupported('immersive-vr').then(function(supported) {
+        supported ? showEnterVR() : showWebXRNotFound();
+      });
+      return button;
+    } else {
+      const message = document.createElement('a');
+      if (window.isSecureContext === false) {
+        message.href = document.location.href.replace(/^http:/, 'https:');
+        message.innerHTML = 'WEBXR NEEDS HTTPS';
+      } else {
+        message.href = 'https://immersiveweb.dev/';
+        message.innerHTML = 'WEBXR NOT AVAILABLE';
+      }
+      message.style.left = 'calc(50% - 90px)';
+      message.style.width = '180px';
+      message.style.textDecoration = 'none';
+      stylizeElement(message);
+      return message;
+    }
+  }
+};
+</script>
+
+<script>
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a1a);
+window._scene = scene;
+window._sceneBg = scene.background.clone();
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 1.6, 3);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x0a0a1a, 1);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+window._renderer = renderer;
+
+document.body.appendChild(THREE.VRButton.createButton(renderer));
+
+// === LIGHTS ===
+const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+scene.add(ambient);
+
+const hemi = new THREE.HemisphereLight(0x8888cc, 0x443322, 0.5);
+scene.add(hemi);
+
+const keyLight = new THREE.DirectionalLight(0xffeedd, 1.2);
+keyLight.position.set(3, 4, 5);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.radius = 4;
+scene.add(keyLight);
+
+const fillLight = new THREE.PointLight(0x6688aa, 0.4);
+fillLight.position.set(-3, 2, 2);
+scene.add(fillLight);
+
+// === DESK ===
+const deskGroup = new THREE.Group();
+
+// Wood material
+const woodMat = new THREE.MeshStandardMaterial({
+  color: 0x8b5a2b,
+  roughness: 0.85,
+  metalness: 0.0
+});
+
+const darkWoodMat = new THREE.MeshStandardMaterial({
+  color: 0x5c3d1e,
+  roughness: 0.9,
+  metalness: 0.0
+});
+
+// Desktop
+const desktopGeo = new THREE.BoxGeometry(1.4, 0.05, 0.7);
+const desktop = new THREE.Mesh(desktopGeo, woodMat);
+desktop.position.y = 0.75;
+desktop.castShadow = true;
+desktop.receiveShadow = true;
+deskGroup.add(desktop);
+
+// Legs
+const legGeo = new THREE.BoxGeometry(0.06, 0.72, 0.06);
+const legPositions = [
+  [-0.62, 0.36, 0.27],
+  [0.62, 0.36, 0.27],
+  [-0.62, 0.36, -0.27],
+  [0.62, 0.36, -0.27]
+];
+
+legPositions.forEach(pos => {
+  const leg = new THREE.Mesh(legGeo, darkWoodMat);
+  leg.position.set(pos[0], pos[1], pos[2]);
+  leg.castShadow = true;
+  leg.receiveShadow = true;
+  deskGroup.add(leg);
+});
+
+// Side panels
+const sidePanelGeo = new THREE.BoxGeometry(0.02, 0.5, 0.5);
+const leftPanel = new THREE.Mesh(sidePanelGeo, darkWoodMat);
+leftPanel.position.set(-0.68, 0.47, 0);
+leftPanel.castShadow = true;
+deskGroup.add(leftPanel);
+
+const rightPanel = new THREE.Mesh(sidePanelGeo, darkWoodMat);
+rightPanel.position.set(0.68, 0.47, 0);
+rightPanel.castShadow = true;
+deskGroup.add(rightPanel);
+
+// Back panel
+const backPanelGeo = new THREE.BoxGeometry(1.32, 0.5, 0.02);
+const backPanel = new THREE.Mesh(backPanelGeo, darkWoodMat);
+backPanel.position.set(0, 0.47, -0.33);
+backPanel.castShadow = true;
+deskGroup.add(backPanel);
+
+// Drawer front
+const drawerFrontGeo = new THREE.BoxGeometry(0.5, 0.12, 0.03);
+const drawerFront = new THREE.Mesh(drawerFrontGeo, woodMat);
+drawerFront.position.set(0.35, 0.6, 0.34);
+drawerFront.castShadow = true;
+deskGroup.add(drawerFront);
+
+// Drawer handle
+const handleGeo = new THREE.CylinderGeometry(0.01, 0.01, 0.12, 8);
+const handleMat = new THREE.MeshStandardMaterial({
+  color: 0xcccccc,
+  roughness: 0.3,
+  metalness: 0.8
+});
+const handle = new THREE.Mesh(handleGeo, handleMat);
+handle.rotation.z = Math.PI / 2;
+handle.position.set(0.35, 0.6, 0.37);
+handle.castShadow = true;
+deskGroup.add(handle);
+
+deskGroup.position.set(0, 0, 0);
+scene.add(deskGroup);
+
+// === SENSOR BRIDGE ===
+window.onSensorUpdate = function(sensors) {
+  // Stub for future sensor integration
+};
+
+// === RESIZE ===
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// === ANIMATION LOOP ===
+const clock = new THREE.Clock();
+
+renderer.setAnimationLoop(function() {
+  const dt = clock.getDelta();
+  const t = clock.getElapsedTime();
+
+  // Gentle desk rotation
+  deskGroup.rotation.y = Math.sin(t * 0.3) * 0.15;
+
+  // Camera drift - desktop only
+  if (!renderer.xr.isPresenting) {
+    camera.position.x = Math.sin(t * 0.2) * 0.3;
+    camera.position.y = 1.2 + Math.sin(t * 0.15) * 0.1;
+    camera.lookAt(0, 0.6, 0);
+  }
+
+  renderer.render(scene, camera);
+});
+
+</script>
+</body>
+</html>
